@@ -121,32 +121,32 @@ proc stripTag2(node: xmlNodePtr, tag: string, sub: Option[string] = none(string)
 
 
 
-var docstr = "<b><c>woof <br/> <i>dd</i></c><a>are you a <i>cat</i> or a <i>dog</i>?</a></b>"
+# var docstr = "<b><c>woof <br/> <i>dd</i></c><a>are you a <i>cat</i> or a <i>dog</i>?</a></b>"
 
-var doc2 = xmlReadMemory(docstr.cstring, docstr.len.cint, "".cstring, nil, 0.cint)
-discard xmlDocDump(cast[ptr structsfile](stdout), doc2);
+# var doc2 = xmlReadMemory(docstr.cstring, docstr.len.cint, "".cstring, nil, 0.cint)
+# discard xmlDocDump(cast[ptr structsfile](stdout), doc2);
 
 
-var node2 = doc2.xmlDocGetRootElement
-print $node2
+# var node2 = doc2.xmlDocGetRootElement
+# print $node2
 
-var nodeRes = findByXPath(node2, "//c")
+# var nodeRes = findByXPath(node2, "//c")
 
-for n in nodeRes:
-  print $n
-  var m = n.stripTag2("i")
-  print $m
-  print m.stripTag("br", some("xx")).`$`
+# for n in nodeRes:
+#   print $n
+#   var m = n.stripTag2("i")
+#   print $m
+#   print m.stripTag("br", some("xx")).`$`
 
 
 # print $node2
 
 # discard xmlDocDump(cast[ptr structsfile](stdout), doc);
 
-# var xml = parseFile("Imitation_of_christ.xml")
-# print $xml
+var xml = parseFile("Imitation_of_christ.xml")
+print $xml
 
-# var nodes = findByXPath(xml, "//p[@class='First']")
-# for n in nodes:
-#   print $n
-#   discard readLine(stdin)
+var nodes = findByXPath(xml, "//title or //div1 or //div2[not(@title='Index of Scripture References) and not(@title='Subject Index')]")
+for n in nodes:
+  print $n
+  discard readLine(stdin)
