@@ -4,7 +4,6 @@ import futhark
   # export LDFLAGS="-L/usr/local/opt/libxml2/lib"
   # export CPPFLAGS="-I/usr/local/opt/libxml2/include"
 
-
 importc:
   path "/usr/local/opt/libxml2/include"
   "libxml/tree.h"
@@ -20,12 +19,9 @@ proc innerXml(node: xmlNodePtr): string =
   var buf = xmlBufferCreate()
   var children = node.children
   while children != nil:
-    # print "child- "
-    # print children.name
     xmlBufferEmpty(buf)
     discard xmlnodedump(buf, node.doc,
                         cast[xmlnodeptr](children), 0, 0)
-    # discard xmlBufferDump(cast[ptr structsfile](stdout), buf)
 
     outString = outString & $(cast[cstring](buf.content))
     children = children.next
@@ -65,3 +61,9 @@ for i in 0..nodes.nodeNr - 1:
 
   # xmlElemDump(cast[ptr structsfile](stdout), doc, xmlFirstElementChild(cur))
   print "\n"
+
+
+var docstr = "<a>cat</a>"
+var doc2 = xmlReadMemory(docstr.cstring, docstr.len.cint, "".cstring, nil, 0.cint)
+
+discard xmlDocDump(cast[ptr structsfile](stdout), doc2);
