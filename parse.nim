@@ -29,6 +29,19 @@ proc innerXml(node: xmlNodePtr): string =
   return outString
 
 
+type ChildList = object
+  node: xmlNodePtr
+
+iterator items(children: ChildList): xmlNodePtr =
+  var cur = children.node
+  while cur != nil:
+    yield cur
+    cur = cur.next
+
+proc childNodes(node: xmlNodePtr): ChildList =
+  return ChildList(node: node.children)
+
+
 proc `$`(node: xmlNodePtr): string =
   var buf = xmlBufferCreate()
   discard xmlnodedump(buf, node.doc,
@@ -51,13 +64,19 @@ proc findByXPath(doc: xmlDocPtr, XPath: string): NodeList =
 
 proc findByXPath(node: xmlNodePtr, XPath: string): NodeList =
   var doc = xmlNewDoc(cast[ptr uint8]("".cstring))
-  discard xmlDocSetRootElement(doc, node)
+  var copyNode = xmlCopyNode(node, 1)
+  discard xmlDocSetRootElement(doc, copyNode)
   return findByXPath(doc, XPath)
 
 
 proc parseString(xmlStr: string): xmlNodePtr =
   var doc = xmlReadMemory(xmlStr.cstring, xmlStr.len.cint, "".cstring, nil, 0.cint)
   return doc.xmlDocGetRootElement
+
+proc parseFile(xmlFile: string): xmlNodePtr =
+  var doc = xmlReadFile(xmlFile.cstring, nil, enumxmlparseroption.Xmlparsenoblanks.cint )
+  return doc.xmlDocGetRootElement
+
 
 proc stripTag(node: xmlNodePtr, tag: string, sub: Option[string] = none(string)): xmlNodePtr =
   var nodes = findByXPath(node, fmt"//{tag}")
@@ -70,24 +89,34 @@ proc stripTag(node: xmlNodePtr, tag: string, sub: Option[string] = none(string))
 
   return nodeStr.parseString
 
+
+proc stripTag2(node: xmlNodePtr, tag: string, sub: Option[string] = none(string)): xmlNodePtr =
+  var nodes = findByXPath(node, fmt"//{tag}")
+  var newDoc: xmlDocPtr
+  var nodeStr = $node
+  for n in nodes:
+    newDoc = n.doc
+    if not sub.isSome:
+      # nodeStr = nodeStr.replace($n, n.innerXml)
+      for c in n.childNodes:
+        print $c
+        print "here"
+        print $n
+        var op = xmlAddSibling(n, c)
+        print $n
+        # print $op
+      n.xmlUnlinkNode
+    else:
+      var newTextNode = xmlNewText(cast[ptr uint8](sub.get.cstring))
+      var op = xmlAddSibling(n, newTextNode)
+      n.xmlUnlinkNode
+
+ 
+  print newDoc.xmlDocGetRootElement.`$`
+  return newDoc.xmlDocGetRootElement
+  # return nodeStr.parseString
+
 # proc delTag(node: xmlNodePtr, tag: string): xmlNodePtr =
-
-
-var doc = xmlReadFile(cstring("test.xml"), nil, enumxmlparseroption.Xmlparsenoblanks.cint )
-
-if doc == nil:
-  print "error"
-
-discard xmlDocDump(cast[ptr structsfile](stdout), doc);
-
-var xpathCtx = xmlXPathNewContext(doc);
-var xpathExpr = "//div[@class='x']"
-var xpathObj = xmlXPathEvalExpression(cast[ptr uint8](cstring(xpathExpr)), xpathCtx);
-
-# discard xmlDocDump(cast[ptr structsfile](stdout), xpathObj);
-
-var nodes = xpathObj.nodesetval
-print nodes.nodeNr
 
 
 
@@ -105,6 +134,19 @@ var nodeRes = findByXPath(node2, "//c")
 
 for n in nodeRes:
   print $n
-  var m = n.stripTag("i")
+  var m = n.stripTag2("i")
+  print $m
   print m.stripTag("br", some("xx")).`$`
 
+
+# print $node2
+
+# discard xmlDocDump(cast[ptr structsfile](stdout), doc);
+
+# var xml = parseFile("Imitation_of_christ.xml")
+# print $xml
+
+# var nodes = findByXPath(xml, "//p[@class='First']")
+# for n in nodes:
+#   print $n
+#   discard readLine(stdin)
