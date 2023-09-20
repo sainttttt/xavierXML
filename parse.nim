@@ -1,5 +1,6 @@
 import print
 import futhark
+import std/[strformat, strutils, options]
 
   # export LDFLAGS="-L/usr/local/opt/libxml2/lib"
   # export CPPFLAGS="-I/usr/local/opt/libxml2/include"
@@ -34,6 +35,43 @@ proc `$`(node: xmlNodePtr): string =
                       node, 0, 0)
   return $(cast[cstring](buf.content))
 
+type NodeList = object
+  nodes: xmlNodeSetPtr
+
+iterator items(nodes: NodeList): xmlNodePtr =
+  for i in 0..nodes.nodes.nodeNr - 1:
+    yield cast[ptr UncheckedArray[xmlNodePtr]](nodes.nodes.nodeTab)[i]
+
+proc findByXPath(doc: xmlDocPtr, XPath: string): NodeList =
+  var xpathCtx = xmlXPathNewContext(doc);
+  var xpathObj = xmlXPathEvalExpression(cast[ptr uint8](cstring(XPath)),
+                                         xpathCtx);
+  var nodes = xpathObj.nodesetval
+  return NodeList(nodes: nodes)
+
+proc findByXPath(node: xmlNodePtr, XPath: string): NodeList =
+  var doc = xmlNewDoc(cast[ptr uint8]("".cstring))
+  discard xmlDocSetRootElement(doc, node)
+  return findByXPath(doc, XPath)
+
+
+proc parseString(xmlStr: string): xmlNodePtr =
+  var doc = xmlReadMemory(xmlStr.cstring, xmlStr.len.cint, "".cstring, nil, 0.cint)
+  return doc.xmlDocGetRootElement
+
+proc stripTag(node: xmlNodePtr, tag: string, sub: Option[string] = none(string)): xmlNodePtr =
+  var nodes = findByXPath(node, fmt"//{tag}")
+  var nodeStr = $node
+  for n in nodes:
+    if not sub.isSome:
+      nodeStr = nodeStr.replace($n, n.innerXml)
+    else:
+      nodeStr = nodeStr.replace($n, sub.get)
+
+  return nodeStr.parseString
+
+# proc delTag(node: xmlNodePtr, tag: string): xmlNodePtr =
+
 
 var doc = xmlReadFile(cstring("test.xml"), nil, enumxmlparseroption.Xmlparsenoblanks.cint )
 
@@ -43,7 +81,6 @@ if doc == nil:
 discard xmlDocDump(cast[ptr structsfile](stdout), doc);
 
 var xpathCtx = xmlXPathNewContext(doc);
-
 var xpathExpr = "//div[@class='x']"
 var xpathObj = xmlXPathEvalExpression(cast[ptr uint8](cstring(xpathExpr)), xpathCtx);
 
@@ -53,17 +90,21 @@ var nodes = xpathObj.nodesetval
 print nodes.nodeNr
 
 
-for i in 0..nodes.nodeNr - 1:
-  print i
-  var cur = cast[ptr UncheckedArray[xmlNodePtr]](nodes.nodeTab)[i];
-  print cur.innerXml
-  print $cur
-
-  # xmlElemDump(cast[ptr structsfile](stdout), doc, xmlFirstElementChild(cur))
-  print "\n"
 
 
-var docstr = "<a>cat</a><b>dog</b>"
+var docstr = "<b><c>woof <br/> <i>dd</i></c><a>are you a <i>cat</i> or a <i>dog</i>?</a></b>"
+
 var doc2 = xmlReadMemory(docstr.cstring, docstr.len.cint, "".cstring, nil, 0.cint)
-
 discard xmlDocDump(cast[ptr structsfile](stdout), doc2);
+
+
+var node2 = doc2.xmlDocGetRootElement
+print $node2
+
+var nodeRes = findByXPath(node2, "//c")
+
+for n in nodeRes:
+  print $n
+  var m = n.stripTag("i")
+  print m.stripTag("br", some("xx")).`$`
+
