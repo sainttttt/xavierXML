@@ -63,7 +63,7 @@ for i in 0..nodes.nodeNr - 1:
   print "\n"
 
 
-var docstr = "<a>cat</a>"
+var docstr = "<a>cat</a><b>dog</b>"
 var doc2 = xmlReadMemory(docstr.cstring, docstr.len.cint, "".cstring, nil, 0.cint)
 
 discard xmlDocDump(cast[ptr structsfile](stdout), doc2);
