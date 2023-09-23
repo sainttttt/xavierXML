@@ -15,6 +15,8 @@ importc:
 {.passl: "-L/usr/local/opt/libxml2/lib".}
 {.passl: "-lxml2".}
 
+type xmlCharPtr = ptr uint8
+
 proc innerXml(node: xmlNodePtr): string =
   var outString = ""
   var buf = xmlBufferCreate()
@@ -41,7 +43,6 @@ iterator items(children: ChildList): xmlNodePtr =
 proc childNodes(node: xmlNodePtr): ChildList =
   return ChildList(node: node.children)
 
-
 proc `$`(node: xmlNodePtr): string =
   var buf = xmlBufferCreate()
   discard xmlnodedump(buf, node.doc,
@@ -50,6 +51,9 @@ proc `$`(node: xmlNodePtr): string =
 
 type NodeList = object
   nodes: xmlNodeSetPtr
+
+proc len(nodes: NodeList): int =
+  return nodes.nodes.nodeNr.int
 
 iterator items(nodes: NodeList): xmlNodePtr =
   for i in 0..nodes.nodes.nodeNr - 1:
@@ -63,10 +67,13 @@ proc findByXPath(doc: xmlDocPtr, XPath: string): NodeList =
   return NodeList(nodes: nodes)
 
 proc findByXPath(node: xmlNodePtr, XPath: string): NodeList =
+  var oldDoc = node.doc
   var doc = xmlNewDoc(cast[ptr uint8]("".cstring))
-  var copyNode = xmlCopyNode(node, 1)
-  discard xmlDocSetRootElement(doc, copyNode)
-  return findByXPath(doc, XPath)
+  # var copyNode = xmlCopyNode(node, 1)
+  discard xmlDocSetRootElement(doc, node)
+  var ret =  findByXPath(doc, XPath)
+  discard xmlDocSetRootElement(oldDoc, node)
+  return ret
 
 
 proc parseString(xmlStr: string): xmlNodePtr =
@@ -78,7 +85,11 @@ proc parseFile(xmlFile: string): xmlNodePtr =
   return doc.xmlDocGetRootElement
 
 
-proc stripTag(node: xmlNodePtr, tag: string, sub: Option[string] = none(string)): xmlNodePtr =
+proc getAttr(node: xmlNodePtr, name: string): string =
+  cast[cstring](node.xmlGetProp(cast[xmlCharPtr](name.cstring))).`$`
+
+
+proc stripTag2(node: xmlNodePtr, tag: string, sub: Option[string] = none(string)): xmlNodePtr =
   var nodes = findByXPath(node, fmt"//{tag}")
   var nodeStr = $node
   for n in nodes:
@@ -90,30 +101,44 @@ proc stripTag(node: xmlNodePtr, tag: string, sub: Option[string] = none(string))
   return nodeStr.parseString
 
 
-proc stripTag2(node: xmlNodePtr, tag: string, sub: Option[string] = none(string)): xmlNodePtr =
+proc stripTag(node: xmlNodePtr, tag: string, sub: Option[string] = none(string)): xmlNodePtr =
   var nodes = findByXPath(node, fmt"//{tag}")
-  var newDoc: xmlDocPtr
+  # var doc: node.doc
   var nodeStr = $node
+  print "stripTag"
+  print nodeStr
+  # if nodes.len == 0:
+  #   newDoc = n.doc
   for n in nodes:
-    newDoc = n.doc
+    # newDoc = n.doc
     if not sub.isSome:
+      print 'x'
       # nodeStr = nodeStr.replace($n, n.innerXml)
       for c in n.childNodes:
+        print "1"
         print $c
         print "here"
         print $n
         var op = xmlAddSibling(n, c)
         print $n
+        print $node
+        print $n
+        print "break ------"
         # print $op
+      print $node
+      print "unlink"
       n.xmlUnlinkNode
+      print $node
     else:
       var newTextNode = xmlNewText(cast[ptr uint8](sub.get.cstring))
       var op = xmlAddSibling(n, newTextNode)
       n.xmlUnlinkNode
 
- 
-  print newDoc.xmlDocGetRootElement.`$`
-  return newDoc.xmlDocGetRootElement
+
+  print $node
+  # print newDoc.xmlDocGetRootElement.`$`
+  # return newDoc.xmlDocGetRootElement
+  return node
   # return nodeStr.parseString
 
 # proc delTag(node: xmlNodePtr, tag: string): xmlNodePtr =
@@ -143,10 +168,85 @@ proc stripTag2(node: xmlNodePtr, tag: string, sub: Option[string] = none(string)
 
 # discard xmlDocDump(cast[ptr structsfile](stdout), doc);
 
-var xml = parseFile("Imitation_of_christ.xml")
-print $xml
+var xml = parseFile("on-the-trinity.xml")
+# print $xml
 
-var nodes = findByXPath(xml, "//title or //div1 or //div2[not(@title='Index of Scripture References) and not(@title='Subject Index')]")
-for n in nodes:
-  print $n
+import yaml/serialization, streams
+import std/[json, tables, algorithm]
+
+type Source = object
+  avail: bool
+  base: string
+  index: string
+
+type Gloss = object
+  text: string
+  source: Source
+
+type Sentence = object
+  text: string
+  glosses: Option[seq[Gloss]]
+
+proc procSentences(node: xmlNodePtr): seq[Sentence] =
+  var sentences: seq[Sentence]
+  var procNode = node.stripTag("span")
+                     # .stripTag("name")
+                     # .stripTag("span")
+                     # .stripTag("pb", some(" "))
+                     # .stripTag("name", some(" "))
+
+  print "meow"
+
+  print procNode.innerXml
   discard readLine(stdin)
+
+  for s in procNode.innerXml.split("."):
+    sentences.add(Sentence(text: s, glosses: none(seq[Gloss])))
+    print s
+    discard readLine(stdin)
+
+  return sentences
+
+
+
+var formatFile = "on-the-trinity-structure.json"
+var bookFormat = parseJson(readFile(formatFile))
+
+var procStrings = initTable[string, (xmlNodePtr, string)]()
+
+var allSelectors: seq[string]
+
+for k,v in bookFormat.pairs:
+  print k, $v
+  var selector = v[0]["selector"].getStr
+  allSelectors.add(selector)
+  print selector
+  var nodes = findByXPath(xml, selector)
+  for n in nodes:
+    procStrings[$n] = (node: n, section: k)
+    # var content: string
+    # if v[0]["content"][0].getStr != "inner":
+    #   content = n
+    # else:
+    #   # print $n
+    #   content = n.parseSentences
+    #   print k
+    # print (content: content, section: k)
+
+print allSelectors.join(" | ")
+
+var nodes = findByXPath(xml, allSelectors.join("|"))
+for n in nodes:
+  if procStrings[$n][1] == "sentence":
+    print $(procStrings[$n][0])
+    discard readLine(stdin)
+    var sentences = n.procSentences
+    # var sentences = procStrings[$n][0].split(".")
+    # for s in sentences:
+    #   print s
+    # break
+
+# var nodes = findByXPath(xml, "//title|//div1[not(@title='Indexes')]|//div2[not(@title='Index of Scripture References') and not(@title='Subject Index') and not(@title='Index of Pages of the Print Edition') and not(@title='Index of Names')]")
+# for n in nodes:
+#   print $n
+#   # discard readLine(stdin)

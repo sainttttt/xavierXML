@@ -1,0 +1,34 @@
+{
+  "title": [
+    {
+      "selector": "//div2",
+      "content": [
+        "title"
+      ]
+    }
+  ],
+  "book": [
+    {
+      "selector": "//div3[@type='Book']",
+      "content": [
+        "title"
+      ]
+    }
+  ],
+  "chapter": [
+    {
+      "selector": "//div4[@type='Chapter']",
+      "content": [
+        "title"
+      ]
+    }
+  ],
+  "sentence": [
+    {
+      "selector": "//div4/p",
+      "content": [
+        "inner"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+title:
+  selector:
+    - title
+  content: text
+
+book:
+  selector:
+    - div1
+  content: "[title]"
+
+chapter:
+  selector:
+    - div2
+  content: "[title]"
+
+sentence:
+  selector:
+  - div2:not([title="Index of Scripture References"])
+  - :not([title="Subject Index"])
+  - :not([title="Index of Pages of the Print Edition"])
+  content: p
