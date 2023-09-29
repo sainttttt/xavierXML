@@ -1,6 +1,6 @@
 import print
 import xavierXML
-import std/[strformat, strutils, options]
+import std/[strformat, strutils, options, unicode, re]
 import splitSent
 
 var xml = parseFile("on-the-trinity.xml")
@@ -9,14 +9,9 @@ var xml = parseFile("on-the-trinity.xml")
 import yaml/serialization, streams
 import std/[json, tables, algorithm]
 
-type Source = object
-  avail: bool
-  base: string
-  index: string
-
 type Gloss = object
   text: string
-  source: Source
+  source: string
 
 type Sentence = object
   text: string
@@ -49,31 +44,47 @@ proc procSentences(node: xmlNodePtr): seq[Sentence] =
   procNode = ret[0]
   repStrings = ret[1]
 
-
-  print "before", repStrings
   for rep in repStrings.mitems:
+    rep = rep.replace("\n", " ")
+             .replace("“","\"")
+             .replace("”", "\"")
+             .replace("—", "-")
+             .replace("’", "'")
+    print rep
+    echo rep
     var repNode = rep.parseString
     if repNode == nil:
       continue
     if repNode.getName == "scripRef":
-      rep = repNode.getAttr("parsed")
-      discard readLine(stdin)
+      rep = "scrip:" & repNode.getAttr("parsed")
 
   echo $procNode
-  print "after", repStrings
 
-  discard readLine(stdin)
-  var rawText = procNode.innerXml.replace("\n", " ")
+  var rawText = procNode.innerXml
+                        .replace("\n", " ")
+                        .replace("“","\"")
+                        .replace("”", "\"")
+                        .replace("—", "-")
+                        .replace("’", "'")
   print rawText
 
+
+  repStrings.reverse
   for s in rawText.splitSentences:
-    sentences.add(Sentence(text: s, glosses: none(seq[Gloss])))
+    var glosses: seq[Gloss]
+    print s.count("†")
+    for i in 1..s.count("†"):
+      var repString = repStrings.pop
+      if repString.startsWith("scrip:"):
+        glosses.add(Gloss(text: "scrip", source: repString.split(":")[1]))
+      else:
+        glosses.add(Gloss(text: repString, source: "NA"))
+
+    sentences.add(Sentence(text: s, glosses: some(glosses)))
     # print s
     # discard readLine(stdin)
 
   return sentences
-
-
 
 var formatFile = "on-the-trinity-structure.json"
 var bookFormat = parseJson(readFile(formatFile))
@@ -107,6 +118,8 @@ for n in nodes:
     print $n
     var sentences = n.procSentences
     for s in sentences:
+      # echo "-----"
+      echo s.text
       print s
     discard readLine(stdin)
     # var sentences = extractedNodes[$n][0].split(".")
